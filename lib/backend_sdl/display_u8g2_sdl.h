@@ -50,7 +50,6 @@ private:
     SDL_Texture* _texture = nullptr;
 
     u8g2_t _u8g2;
-    std::vector<uint32_t> _rgba;
 
     void recreateWindow();
     void destroySDLObjects();

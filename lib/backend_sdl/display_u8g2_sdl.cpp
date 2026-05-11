@@ -4,6 +4,78 @@
 
 #include <stdio.h>
 
+#define PIXEL_TO_TILE(x) ((x + 7) / 8)
+
+static const u8x8_display_info_t u8x8_sdl_display_info = {
+    /* chip_enable_level = */ 0,
+    /* chip_disable_level = */ 1,
+
+    /* post_chip_enable_wait_ns = */ 20,
+    /* pre_chip_disable_wait_ns = */ 20,
+    /* reset_pulse_width_ms = */ 3,
+    /* post_reset_wait_ms = */ 3,
+    /* sda_setup_time_ns = */ 10,
+    /* sck_pulse_width_ns = */ 30,
+    /* sck_clock_hz = */ 2000000UL,
+    /* spi_mode = */ 0,
+    /* i2c_bus_clock_100kHz = */ 4,
+    /* data_setup_time_ns = */ 15,
+    /* write_pulse_width_ns = */ 70,
+    /* tile_width = */ (APP_WIDTH + 7) / 8,
+    /* tile_height = */ (APP_HEIGHT + 7) / 8,
+    /* default_x_offset = */ 0,
+    /* flipmode_x_offset = */ 0,
+    /* pixel_width = */ APP_WIDTH,
+    /* pixel_height = */ APP_HEIGHT};
+
+
+static uint8_t sdl_buf[PIXEL_TO_TILE(APP_WIDTH) * PIXEL_TO_TILE(APP_HEIGHT) * 8];
+static uint32_t sdl_rgba[APP_WIDTH * APP_HEIGHT];
+
+static uint8_t u8x8_d_sdl(u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void *arg_ptr) {
+    switch (msg)
+    {
+    case U8X8_MSG_DISPLAY_SETUP_MEMORY:
+        u8x8_d_helper_display_setup_memory(u8x8, &u8x8_sdl_display_info);
+        break;
+
+    case U8X8_MSG_DISPLAY_INIT:
+        u8x8_d_helper_display_init(u8x8);
+        break;
+
+    case U8X8_MSG_DISPLAY_DRAW_TILE:
+        {
+            u8x8_tile_t *tile = (u8x8_tile_t *)arg_ptr;
+            int x_start = tile->x_pos * 8;
+            int y_start = tile->y_pos * 8;
+            uint8_t *data = tile->tile_ptr;
+            uint8_t cnt = tile->cnt;
+
+            for (int i = 0; i < cnt; i++) {
+                for (int tx = 0; tx < 8; tx++) {
+                    int x = x_start + (i * 8) + tx;
+                    if (x >= APP_WIDTH) break;
+
+                    uint8_t pixel_col = data[i * 8 + tx];
+
+                    for (int ty = 0; ty < 8; ty++) {
+                        int y = y_start + ty;
+                        if (y >= APP_HEIGHT) break;
+
+                        bool is_on = (pixel_col >> ty) & 0x01;
+                        sdl_rgba[APP_WIDTH * y + x] = is_on ? 0xFF000000 : 0xFFFFFFFF;
+                    }
+                }
+            }
+        }
+        break;
+
+    default:
+        return 0;
+    }
+    return 1;
+}
+
 // dummy callback: no real SPI/I2C needed
 static uint8_t u8x8_byte_dummy(u8x8_t*, uint8_t, uint8_t, void*)
 {
@@ -20,7 +92,6 @@ DisplayU8g2SDL::DisplayU8g2SDL(int w, int h, int scale)
     : _w(w), _h(h), _scale(scale)
 {
     if (_scale < 1) _scale = 1;
-    _rgba.resize(_w * _h);
 }
 
 DisplayU8g2SDL::~DisplayU8g2SDL()
@@ -85,14 +156,9 @@ bool DisplayU8g2SDL::init()
 
     recreateWindow();
 
-    // Use official u8g2 setup function (same as your real screen)
-    // Full-buffer mode (_f)
-    u8g2_Setup_st7567_os12864_f(
-        &_u8g2,
-        U8G2_R0,
-        u8x8_byte_dummy,
-        u8x8_gpio_and_delay_dummy
-    );
+    int page_count = (_h + 7) / 8;
+    u8g2_SetupDisplay(&_u8g2, u8x8_d_sdl, u8x8_cad_001, u8x8_byte_dummy, u8x8_gpio_and_delay_dummy);
+    u8g2_SetupBuffer(&_u8g2, sdl_buf, page_count, u8g2_ll_hvline_vertical_top_lsb, U8G2_R0);
 
     u8g2_InitDisplay(&_u8g2);
     u8g2_SetPowerSave(&_u8g2, 0);
@@ -192,23 +258,12 @@ void DisplayU8g2SDL::invertRect(int x, int y, int w, int h)
 
 void DisplayU8g2SDL::update()
 {
-    uint8_t *buf = u8g2_GetBufferPtr(&_u8g2);
-
-
-    for (int y = 0; y < _h; y++) {
-        for (int x = 0; x < _w; x++) {
-
-            uint8_t pixel = (buf[(y >> 3) * APP_WIDTH + x] >> (y & 7)) & 1;
-
-            _rgba[y * _w + x] =
-                pixel ? 0xFF000000 : 0xFFFFFFFF;
-        }
-    }
+    u8g2_SendBuffer(&_u8g2);
 
     SDL_UpdateTexture(
         _texture,
         nullptr,
-        _rgba.data(),
+        sdl_rgba,
         _w * sizeof(uint32_t)
     );
 
