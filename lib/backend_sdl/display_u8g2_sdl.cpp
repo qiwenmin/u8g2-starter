@@ -122,17 +122,14 @@ void DisplayU8g2SDL::recreateWindow()
 
     _window = SDL_CreateWindow(
         "U8g2 SDL Simulator",
-        SDL_WINDOWPOS_CENTERED,
-        SDL_WINDOWPOS_CENTERED,
         _w * _scale,
         _h * _scale,
-        SDL_WINDOW_SHOWN
+        0
     );
 
     _renderer = SDL_CreateRenderer(
         _window,
-        -1,
-        SDL_RENDERER_ACCELERATED
+        nullptr
     );
 
     _texture = SDL_CreateTexture(
@@ -142,17 +139,16 @@ void DisplayU8g2SDL::recreateWindow()
         _w,
         _h
     );
+
+    SDL_SetTextureScaleMode(_texture, SDL_SCALEMODE_NEAREST);
 }
 
 bool DisplayU8g2SDL::init()
 {
-    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS) != 0) {
+    if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS)) {
         printf("SDL_Init failed: %s\n", SDL_GetError());
         return false;
     }
-
-    // nearest neighbor scaling (pixel perfect)
-    SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "0");
 
     recreateWindow();
 
@@ -171,10 +167,10 @@ void DisplayU8g2SDL::pollEvents(bool& quit)
 {
     SDL_Event e;
     while (SDL_PollEvent(&e)) {
-        if (e.type == SDL_QUIT) {
+        if (e.type == SDL_EVENT_QUIT) {
             quit = true;
-        } else if (e.type == SDL_KEYDOWN) {
-            switch (e.key.keysym.sym) {
+        } else if (e.type == SDL_EVENT_KEY_DOWN) {
+            switch (e.key.key) {
             case SDLK_ESCAPE:
                 quit = true;
                 break;
@@ -193,11 +189,11 @@ void DisplayU8g2SDL::pollEvents(bool& quit)
 
 void DisplayU8g2SDL::setScale(int scale)
 {
-    if (scale < 1) scale = 1;
+    if (scale < 2) scale = 2;
     if (scale == _scale) return;
 
     _scale = scale;
-    recreateWindow();
+    SDL_SetWindowSize(_window, _w * _scale, _h * _scale);
 }
 
 int DisplayU8g2SDL::width() const
@@ -269,8 +265,7 @@ void DisplayU8g2SDL::update()
 
     SDL_RenderClear(_renderer);
 
-    SDL_Rect dst{0, 0, _w * _scale, _h * _scale};
-    SDL_RenderCopy(_renderer, _texture, nullptr, &dst);
+    SDL_RenderTexture(_renderer, _texture, nullptr, nullptr);
 
     SDL_RenderPresent(_renderer);
 }

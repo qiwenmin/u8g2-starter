@@ -5,7 +5,7 @@
 #include <stdint.h>
 #include <vector>
 
-#include <SDL.h>
+#include <SDL3/SDL.h>
 
 extern "C" {
 #include <clib/u8g2.h>
