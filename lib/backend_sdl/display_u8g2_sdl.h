@@ -5,7 +5,11 @@
 #include <stdint.h>
 #include <vector>
 
+#ifdef SDL3
 #include <SDL3/SDL.h>
+#else
+#include <SDL.h>
+#endif // SDL3
 
 extern "C" {
 #include <clib/u8g2.h>

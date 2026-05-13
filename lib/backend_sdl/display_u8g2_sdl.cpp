@@ -120,6 +120,7 @@ void DisplayU8g2SDL::recreateWindow()
 {
     destroySDLObjects();
 
+#ifdef SDL3
     _window = SDL_CreateWindow(
         "U8g2 SDL Simulator",
         _w * _scale,
@@ -131,6 +132,22 @@ void DisplayU8g2SDL::recreateWindow()
         _window,
         nullptr
     );
+#else
+    _window = SDL_CreateWindow(
+        "U8g2 SDL Simulator",
+        SDL_WINDOWPOS_CENTERED,
+        SDL_WINDOWPOS_CENTERED,
+        _w * _scale,
+        _h * _scale,
+        SDL_WINDOW_SHOWN
+    );
+
+    _renderer = SDL_CreateRenderer(
+        _window,
+        -1,
+        SDL_RENDERER_ACCELERATED
+    );
+#endif // SDL3
 
     _texture = SDL_CreateTexture(
         _renderer,
@@ -140,15 +157,26 @@ void DisplayU8g2SDL::recreateWindow()
         _h
     );
 
+#ifdef SDL3
     SDL_SetTextureScaleMode(_texture, SDL_SCALEMODE_NEAREST);
+#endif // SDL3
 }
 
 bool DisplayU8g2SDL::init()
 {
+#ifdef SDL3
     if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS)) {
+#else
+    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS) != 0) {
+#endif // SDL3
         printf("SDL_Init failed: %s\n", SDL_GetError());
         return false;
     }
+
+#ifndef SDL3
+    // nearest neighbor scaling (pixel perfect)
+    SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "0");
+#endif // !SDL3
 
     recreateWindow();
 
@@ -167,10 +195,19 @@ void DisplayU8g2SDL::pollEvents(bool& quit)
 {
     SDL_Event e;
     while (SDL_PollEvent(&e)) {
+#ifdef SDL3
         if (e.type == SDL_EVENT_QUIT) {
+#else
+        if (e.type == SDL_QUIT) {
+#endif // SDL3
             quit = true;
+#ifdef SDL3
         } else if (e.type == SDL_EVENT_KEY_DOWN) {
             switch (e.key.key) {
+#else
+        } else if (e.type == SDL_KEYDOWN) {
+            switch (e.key.keysym.sym) {
+#endif // SDL3
             case SDLK_ESCAPE:
                 quit = true;
                 break;
@@ -193,7 +230,11 @@ void DisplayU8g2SDL::setScale(int scale)
     if (scale == _scale) return;
 
     _scale = scale;
+#ifdef SDL3
     SDL_SetWindowSize(_window, _w * _scale, _h * _scale);
+#else
+    recreateWindow();
+#endif // SDL3
 }
 
 int DisplayU8g2SDL::width() const
@@ -265,7 +306,12 @@ void DisplayU8g2SDL::update()
 
     SDL_RenderClear(_renderer);
 
+#ifdef SDL3
     SDL_RenderTexture(_renderer, _texture, nullptr, nullptr);
+#else
+    SDL_Rect dst{0, 0, _w * _scale, _h * _scale};
+    SDL_RenderCopy(_renderer, _texture, nullptr, &dst);
+#endif // SDL3
 
     SDL_RenderPresent(_renderer);
 }
