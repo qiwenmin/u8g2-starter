@@ -22,27 +22,12 @@ public:
     DisplayU8g2SDL(int w, int h, int scale);
     ~DisplayU8g2SDL();
 
+    u8g2_t* getU8g2() override;
+
     bool init();
     void pollEvents(bool& quit);
 
     void setScale(int scale);
-
-    int width() const override;
-    int height() const override;
-
-    void clear() override;
-
-    void setFont(FontId id) override;
-    int lineHeight() const override;
-
-    int utf8Width(const char* s) override;
-    void drawUTF8(int x, int baselineY, const char* s) override;
-
-    void fillRect(int x, int y, int w, int h) override;
-    void frameRect(int x, int y, int w, int h) override;
-    void invertRect(int x, int y, int w, int h) override;
-
-    void update() override;
 
 private:
     int _w;

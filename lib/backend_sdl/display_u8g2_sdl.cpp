@@ -98,6 +98,23 @@ static uint8_t u8x8_d_sdl(u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void *arg_
         }
         break;
 
+    case U8X8_MSG_DISPLAY_REFRESH:
+        {
+            SDLRenderContext* ctx = (SDLRenderContext*)u8x8_GetUserPtr(u8x8);
+            if (ctx && ctx->renderer && ctx->texture) {
+                // 1. 清空画布
+                SDL_RenderClear(ctx->renderer);
+                // 2. 将整张已经更新完毕的纹理复制到后台缓冲区
+#ifdef SDL3
+                SDL_RenderTexture(ctx->renderer, ctx->texture, nullptr, nullptr);
+#else
+                SDL_RenderCopy(ctx->renderer, ctx->texture, nullptr, nullptr);
+#endif // SDL3
+                // 3. 真正刷新到屏幕上（整帧一次性呈现，防止撕裂闪烁）
+                SDL_RenderPresent(ctx->renderer);
+            }
+        }
+        break;
     default:
         return 0;
     }
@@ -146,6 +163,11 @@ void DisplayU8g2SDL::destroySDLObjects()
         SDL_DestroyWindow(_window);
         _window = nullptr;
     }
+}
+
+u8g2_t* DisplayU8g2SDL::getU8g2()
+{
+    return &_u8g2;
 }
 
 void DisplayU8g2SDL::recreateWindow()
@@ -279,78 +301,6 @@ void DisplayU8g2SDL::setScale(int scale)
 #else
     recreateWindow();
 #endif // SDL3
-}
-
-int DisplayU8g2SDL::width() const
-{
-    return _w;
-}
-
-int DisplayU8g2SDL::height() const
-{
-    return _h;
-}
-
-void DisplayU8g2SDL::clear()
-{
-    u8g2_ClearBuffer(&_u8g2);
-}
-
-void DisplayU8g2SDL::setFont(FontId id)
-{
-    switch (id) {
-    case FontId::UI12:
-        u8g2_SetFont(&_u8g2, u8g2_font_6x12_tf);
-        break;
-    }
-}
-
-int DisplayU8g2SDL::lineHeight() const
-{
-    return u8g2_GetMaxCharHeight(&_u8g2);
-}
-
-int DisplayU8g2SDL::utf8Width(const char* s)
-{
-    return u8g2_GetUTF8Width(&_u8g2, s);
-}
-
-void DisplayU8g2SDL::drawUTF8(int x, int baselineY, const char* s)
-{
-    u8g2_DrawUTF8(&_u8g2, x, baselineY, s);
-}
-
-void DisplayU8g2SDL::fillRect(int x, int y, int w, int h)
-{
-    u8g2_DrawBox(&_u8g2, x, y, w, h);
-}
-
-void DisplayU8g2SDL::frameRect(int x, int y, int w, int h)
-{
-    u8g2_DrawFrame(&_u8g2, x, y, w, h);
-}
-
-void DisplayU8g2SDL::invertRect(int x, int y, int w, int h)
-{
-    u8g2_SetDrawColor(&_u8g2, 2); // XOR
-    u8g2_DrawBox(&_u8g2, x, y, w, h);
-    u8g2_SetDrawColor(&_u8g2, 1);
-}
-
-void DisplayU8g2SDL::update()
-{
-    u8g2_SendBuffer(&_u8g2);
-
-    SDL_RenderClear(_renderer);
-
-#ifdef SDL3
-    SDL_RenderTexture(_renderer, _texture, nullptr, nullptr);
-#else
-    SDL_Rect dst{0, 0, _w * _scale, _h * _scale};
-    SDL_RenderCopy(_renderer, _texture, nullptr, &dst);
-#endif // SDL3
-
-    SDL_RenderPresent(_renderer);
 }
 
 #endif
