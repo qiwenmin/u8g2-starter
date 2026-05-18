@@ -32,6 +32,15 @@ static const u8x8_display_info_t u8x8_sdl_display_info = {
 static uint8_t sdl_buf[PIXEL_TO_TILE(APP_WIDTH) * PIXEL_TO_TILE(APP_HEIGHT) * 8];
 static uint32_t sdl_rgba[APP_WIDTH * APP_HEIGHT];
 
+// SDL render context for passing to u8g2 callback
+struct SDLRenderContext {
+    SDL_Renderer* renderer;
+    SDL_Texture* texture;
+    int width;
+};
+
+static SDLRenderContext* g_sdlContext = nullptr;
+
 static uint8_t u8x8_d_sdl(u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void *arg_ptr) {
     switch (msg)
     {
@@ -65,6 +74,25 @@ static uint8_t u8x8_d_sdl(u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void *arg_
                         bool is_on = (pixel_col >> ty) & 0x01;
                         sdl_rgba[APP_WIDTH * y + x] = is_on ? 0xFF000000 : 0xFFFFFFFF;
                     }
+                }
+            }
+
+            SDLRenderContext* ctx = (SDLRenderContext*)u8x8_GetUserPtr(u8x8);
+            if (ctx && ctx->renderer && ctx->texture) {
+                int tile_x = x_start;
+                int tile_y = y_start;
+                int tile_w = cnt * 8;
+                if (tile_x + tile_w > ctx->width) {
+                    tile_w = ctx->width - tile_x;
+                }
+                if (tile_w > 0) {
+                    SDL_Rect rect{tile_x, tile_y, tile_w, 8};
+                    SDL_UpdateTexture(
+                        ctx->texture,
+                        &rect,
+                        &sdl_rgba[ctx->width * tile_y + tile_x],
+                        ctx->width * sizeof(uint32_t)
+                    );
                 }
             }
         }
@@ -109,6 +137,10 @@ void DisplayU8g2SDL::destroySDLObjects()
     if (_renderer) {
         SDL_DestroyRenderer(_renderer);
         _renderer = nullptr;
+    }
+    if (g_sdlContext) {
+        delete g_sdlContext;
+        g_sdlContext = nullptr;
     }
     if (_window) {
         SDL_DestroyWindow(_window);
@@ -160,6 +192,11 @@ void DisplayU8g2SDL::recreateWindow()
 #ifdef SDL3
     SDL_SetTextureScaleMode(_texture, SDL_SCALEMODE_NEAREST);
 #endif // SDL3
+
+    if (g_sdlContext) {
+        g_sdlContext->renderer = _renderer;
+        g_sdlContext->texture = _texture;
+    }
 }
 
 bool DisplayU8g2SDL::init()
@@ -183,6 +220,13 @@ bool DisplayU8g2SDL::init()
     int page_count = (_h + 7) / 8;
     u8g2_SetupDisplay(&_u8g2, u8x8_d_sdl, u8x8_cad_001, u8x8_byte_dummy, u8x8_gpio_and_delay_dummy);
     u8g2_SetupBuffer(&_u8g2, sdl_buf, page_count, u8g2_ll_hvline_vertical_top_lsb, U8G2_R0);
+
+    g_sdlContext = new SDLRenderContext{
+        .renderer = _renderer,
+        .texture = _texture,
+        .width = _w
+    };
+    u8x8_SetUserPtr(&(_u8g2.u8x8), g_sdlContext);
 
     u8g2_InitDisplay(&_u8g2);
     u8g2_SetPowerSave(&_u8g2, 0);
@@ -296,13 +340,6 @@ void DisplayU8g2SDL::invertRect(int x, int y, int w, int h)
 void DisplayU8g2SDL::update()
 {
     u8g2_SendBuffer(&_u8g2);
-
-    SDL_UpdateTexture(
-        _texture,
-        nullptr,
-        sdl_rgba,
-        _w * sizeof(uint32_t)
-    );
 
     SDL_RenderClear(_renderer);
 
