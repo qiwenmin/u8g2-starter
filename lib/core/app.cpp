@@ -7,8 +7,9 @@ void app_render(Display& d, uint32_t tick_ms)
 
     u8g2_ClearBuffer(u8g2);
     u8g2_SetFont(u8g2, u8g2_font_6x12_tf);
-
     u8g2_DrawUTF8(u8g2, 2, 12, "U8g2 + SDL2");
+
+    u8g2_SetFont(u8g2, u8g2_font_wqy12_t_chinese1);
     u8g2_DrawUTF8(u8g2, 2, 28, "Hello 你好世界");
 
     // 光标闪烁 demo
