@@ -170,7 +170,7 @@ u8g2_t* DisplayU8g2SDL::getU8g2()
     return &_u8g2;
 }
 
-void DisplayU8g2SDL::recreateWindow()
+void DisplayU8g2SDL::createWindow()
 {
     destroySDLObjects();
 
@@ -237,7 +237,7 @@ bool DisplayU8g2SDL::init()
     SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "0");
 #endif // !SDL3
 
-    recreateWindow();
+    createWindow();
 
     int page_count = (_h + 7) / 8;
     u8g2_SetupDisplay(&_u8g2, u8x8_d_sdl, u8x8_cad_001, u8x8_byte_dummy, u8x8_gpio_and_delay_dummy);
@@ -296,11 +296,7 @@ void DisplayU8g2SDL::setScale(int scale)
     if (scale == _scale) return;
 
     _scale = scale;
-#ifdef SDL3
     SDL_SetWindowSize(_window, _w * _scale, _h * _scale);
-#else
-    recreateWindow();
-#endif // SDL3
 }
 
 #endif

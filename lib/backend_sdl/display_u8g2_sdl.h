@@ -40,7 +40,7 @@ private:
 
     u8g2_t _u8g2;
 
-    void recreateWindow();
+    void createWindow();
     void destroySDLObjects();
 };
 
